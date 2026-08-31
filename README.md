@@ -133,7 +133,7 @@ result.checks   # every predicate, with what it looked for and what it found
 ```
 
 ```js
-import { run, report, exitCodeFor, evidence } from "didrun";
+import { run, report, exitCodeFor, evidence } from "@megapixel99/didrun";
 
 const result = await run(["pytest", "tests/"], {
   evidence: [evidence.count(/(\d+) passed/), evidence.wrote("junit.xml")],
@@ -186,7 +186,7 @@ Nothing found wraps an arbitrary command and asks whether it did anything.
   it is here because a suite that takes a minute finishing in 9ms is a real signal.
 - It does not parse junit/TAP. `--wrote` plus `--expect-count` covers most of what that
   would buy.
-- Zero dependencies in either half. Node ≥ 18, Python ≥ 3.9.
+- Zero dependencies in either half. Node ≥ 20, Python ≥ 3.9.
 
 ## Tests
 

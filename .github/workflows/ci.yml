@@ -254,7 +254,7 @@ jobs:
           # artifact instead.
           cd /tmp
           /tmp/venv/bin/didrun --help
-          # A scoped package packs as `megapixel99-didrun-0.1.0.tgz`, so the tarball is
+          # A scoped package packs as `megapixel99-didrun-<version>.tgz`, so the tarball is
           # found rather than named.
           mkdir -p /tmp/tarball && tar -xzf /tmp/dist/*.tgz -C /tmp/tarball
           node /tmp/tarball/package/js/bin/didrun.js --help

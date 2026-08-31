@@ -1,10 +1,11 @@
 # One version, two registries, and nothing published that the suite has not run against.
 #
-# This package ships twice from one tree -- `didrun` on PyPI and `didrun` on npm -- and
-# that is the failure mode the `check` job exists to
-# prevent. Two version numbers in two files drift the moment one of them is bumped
-# alone, and the result is not a broken build: it is `pip install didrun` and
-# `npm install didrun` behaving differently while one README describes both.
+# This package ships twice from one tree -- `didrun` on PyPI and `@megapixel99/didrun`
+# on npm, because npm refused the unscoped name as too similar to `madrun` -- and that
+# is the failure mode the `check` job exists to prevent. Two version numbers in two
+# files drift the moment one of them is bumped alone, and the result is not a broken
+# build: it is `pip install didrun` and `npm install @megapixel99/didrun` behaving
+# differently while one README describes both.
 # So the versions are COMPARED before anything is uploaded, rather than each half being
 # trusted to be right about itself.
 #
@@ -234,8 +235,12 @@ jobs:
         # matching ships a package whose entry point is not in it. Cheap to check.
         run: |
           set -euo pipefail
-          npm pack --pack-destination /tmp
-          tarball=$(ls /tmp/*.tgz)
+          # A scoped package packs as `megapixel99-didrun-<version>.tgz`, so the tarball
+          # is found rather than named -- and packed into a directory this step owns, so
+          # "found" cannot mean "found something else that was already in /tmp".
+          rm -rf /tmp/pack && mkdir -p /tmp/pack
+          npm pack --pack-destination /tmp/pack
+          tarball=$(ls /tmp/pack/*.tgz)
           tar -tzf "$tarball" | sort
           if tar -tzf "$tarball" | grep -q "package/python/"; then
             echo "::error::the npm tarball carries the Python half"
