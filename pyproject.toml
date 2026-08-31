@@ -1,0 +1,34 @@
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "didrun"
+version = "0.1.0"
+description = "An exit code cannot tell you whether anything happened. Did it RUN, did it FAIL, and was the failure the RIGHT one."
+readme = "README.md"
+requires-python = ">=3.9"
+license = { text = "MIT" }
+keywords = [
+  "ci", "exit-code", "subprocess", "evidence", "no-tests", "zero-tests",
+  "empty-glob", "test-runner", "smoke-test", "guard", "verification",
+  "false-positive", "silent-failure", "zero-dependency",
+]
+classifiers = [
+  "Development Status :: 3 - Alpha",
+  "Intended Audience :: Developers",
+  "License :: OSI Approved :: MIT License",
+  "Programming Language :: Python :: 3",
+  "Topic :: Software Development :: Testing",
+]
+# LAYER 0. No in-network dependencies: this is a root, like assay-checks and lexindex,
+# and `tools/depgraph.py` in the reckoner tree asserts the graph stays acyclic.
+dependencies = []
+
+[project.scripts]
+didrun = "didrun.cli:main"
+
+[tool.setuptools]
+# The Python half lives in `python/` beside `js/`, and is still imported as `didrun`.
+package-dir = { "" = "python" }
+packages = ["didrun"]

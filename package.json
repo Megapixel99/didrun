@@ -1,0 +1,50 @@
+{
+  "name": "didrun",
+  "version": "0.1.0",
+  "description": "Run a command and get a tri-state answer: did it RUN, did it FAIL, and was the failure the RIGHT one. An exit code cannot tell you the first.",
+  "type": "module",
+  "exports": {
+    ".": "./js/src/index.js",
+    "./evidence": "./js/src/evidence.js"
+  },
+  "bin": {
+    "didrun": "js/bin/didrun.js"
+  },
+  "files": [
+    "js/src",
+    "js/bin",
+    "README.md",
+    "LICENSE"
+  ],
+  "engines": {
+    "node": ">=20.0.0"
+  },
+  "scripts": {
+    "test": "node --test js/test/*.test.js"
+  },
+  "keywords": [
+    "ci",
+    "exit-code",
+    "subprocess",
+    "evidence",
+    "no-tests",
+    "zero-tests",
+    "empty-glob",
+    "test-runner",
+    "smoke-test",
+    "guard",
+    "verification",
+    "false-positive",
+    "silent-failure",
+    "zero-dependency"
+  ],
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Megapixel99/didrun.git"
+  },
+  "bugs": {
+    "url": "https://github.com/Megapixel99/didrun/issues"
+  },
+  "homepage": "https://github.com/Megapixel99/didrun#readme"
+}

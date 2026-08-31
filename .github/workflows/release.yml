@@ -1,0 +1,251 @@
+# One version, two registries, and nothing published that the suite has not run against.
+#
+# This package ships twice from one tree -- `didrun` on PyPI and `didrun` on npm -- and
+# that is the failure mode the `check` job exists to
+# prevent. Two version numbers in two files drift the moment one of them is bumped
+# alone, and the result is not a broken build: it is `pip install didrun` and
+# `npm install didrun` behaving differently while one README describes both.
+# So the versions are COMPARED before anything is uploaded, rather than each half being
+# trusted to be right about itself.
+#
+# A publish cannot be taken back. So every step is guarded by its own answer to "is this
+# already published?", and a run that failed halfway can be repeated with
+# workflow_dispatch: it will do only what is still missing rather than failing on
+# "already exists".
+#
+# PyPI is given no long-lived token. Publishing uses trusted publishing (OIDC): the
+# runner mints a short-lived token, PyPI checks its claims against a publisher
+# registered for this repository AND this workflow filename, and a leaked secret is not
+# a thing this repository has to own.
+#
+# UNTIL THOSE PUBLISHERS ARE REGISTERED, the publish steps fail with an authentication
+# error and nothing else is wrong. Register them with:
+#
+#   PyPI  https://pypi.org/manage/account/publishing/
+#     owner: Megapixel99   repository: didrun
+#     workflow: release.yml   environment: pypi
+#
+#   npm   the package's Settings -> Trusted publisher, on npmjs.com
+#     organization/user: Megapixel99   repository: didrun
+#     workflow: release.yml   environment: npm
+#
+# The version is read from `pyproject.toml` and is the single source of truth. It is
+# never typed into this file, because a version in two places is a version that
+# disagrees with itself at the next bump.
+name: Release
+
+on:
+  push:
+    branches: [master]
+    # A version bump always touches this file. It is a cheap pre-filter, not the
+    # decision — the `check` job below still asks PyPI before anything is published.
+    paths:
+      - 'pyproject.toml'
+  # Lets a partially failed release be finished without another commit.
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    name: Is anything unpublished?
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.read.outputs.version }}
+      name: ${{ steps.read.outputs.name }}
+      pypi_missing: ${{ steps.read.outputs.pypi_missing }}
+      npm_missing: ${{ steps.read.outputs.npm_missing }}
+      tag_missing: ${{ steps.read.outputs.tag_missing }}
+      release_needed: ${{ steps.read.outputs.release_needed }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          # Tags are needed to answer "does this tag already exist?", and the default
+          # shallow fetch does not bring them.
+          fetch-depth: 0
+      - uses: actions/setup-python@v7
+        with:
+          python-version: '3.12'
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '24'
+
+      - id: read
+        name: Do the versions agree, and is anything unpublished?
+        run: |
+          set -euo pipefail
+          read -r name version < <(python3 - <<'PY'
+          import tomllib
+          with open("pyproject.toml", "rb") as fh:
+              p = tomllib.load(fh)["project"]
+          print(p["name"], p["version"])
+          PY
+          )
+          js_name=$(node -p "require('./package.json').name")
+          js_version=$(node -p "require('./package.json').version")
+          # A THIRD PLACE THE VERSION LIVES. `__version__` is what a user who imports
+          # the package reads back, and it is one file further away than the two
+          # manifests -- which is exactly why it is the one that drifts.
+          # PYTHONDONTWRITEBYTECODE so this check never leaves a `.pyc` for the next run
+          # to read. Cache invalidation is keyed on mtime at ONE-SECOND granularity,
+          # and an edit-and-check cycle is milliseconds — the same hazard `canfail`
+          # documents, and it bit this very check while it was being written.
+          dunder=$(PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=python python3 -c "import didrun; print(didrun.__version__)")
+
+          # THE CENTRAL GATE. A version in two files is a version that disagrees with
+          # itself at the next bump, and the failure is silent: both halves publish,
+          # both installs succeed, and they are not the same release.
+          if [ "$version" != "$js_version" ]; then
+            echo "::error::pyproject.toml says $version and package.json says $js_version"
+            exit 1
+          fi
+          if [ "$version" != "$dunder" ]; then
+            echo "::error::pyproject.toml says $version and __version__ says $dunder"
+            exit 1
+          fi
+          if [ "$name" != "$js_name" ]; then
+            echo "::error::pyproject.toml names $name and package.json names $js_name"
+            exit 1
+          fi
+
+          echo "name=$name"       >> "$GITHUB_OUTPUT"
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "releasing $name $version to both registries"
+
+          # `curl -f` fails on 404, which is exactly "this version is not on PyPI".
+          if curl -fsS -o /dev/null "https://pypi.org/pypi/$name/$version/json"; then
+            pypi_missing=false
+          else
+            pypi_missing=true
+          fi
+
+          if git rev-parse -q --verify "refs/tags/v$version" > /dev/null; then
+            tag_missing=false
+          else
+            tag_missing=true
+          fi
+
+          # `npm view` exits non-zero when that exact version is not published.
+          if npm view "$name@$version" version > /dev/null 2>&1; then
+            npm_missing=false
+          else
+            npm_missing=true
+          fi
+
+          echo "pypi_missing=$pypi_missing" >> "$GITHUB_OUTPUT"
+          echo "npm_missing=$npm_missing"   >> "$GITHUB_OUTPUT"
+          echo "tag_missing=$tag_missing"   >> "$GITHUB_OUTPUT"
+          if [ "$pypi_missing" = true ] || [ "$npm_missing" = true ] || [ "$tag_missing" = true ]; then
+            echo "release_needed=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "release_needed=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::$name $version is already on both registries and already tagged"
+          fi
+
+  test:
+    # THE FULL SUITE, CALLED RATHER THAN COPIED. A release gate that has drifted from
+    # the suite it claims to be is worse than no gate, and a copy drifts the first time
+    # a job is added to ci.yml.
+    name: The suite
+    needs: check
+    if: needs.check.outputs.release_needed == 'true'
+    uses: ./.github/workflows/ci.yml
+
+  pypi:
+    name: Publish to PyPI
+    needs: [check, test]
+    if: needs.check.outputs.pypi_missing == 'true'
+    runs-on: ubuntu-latest
+    environment: pypi
+    permissions:
+      id-token: write   # mint the OIDC token PyPI's trusted publishing verifies
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: '3.12'
+
+      - name: Build
+        run: |
+          python3 -m pip install --quiet build
+          python3 -m build --outdir dist
+
+      - name: The artifact is what the tag says
+        # A wheel whose filename does not carry the version in pyproject.toml means the
+        # build read something else, and the thing uploaded would not be the thing
+        # tested. Cheap to check, and silent if it is ever wrong.
+        run: |
+          set -euo pipefail
+          version='${{ needs.check.outputs.version }}'
+          ls -1 dist
+          if ! ls dist/*.whl | grep -q -- "-$version-"; then
+            echo "::error::no wheel in dist/ carries version $version"
+            exit 1
+          fi
+
+      - name: Publish
+        # No password, no token. PyPI verifies the OIDC token minted above against a
+        # trusted publisher registered for this repository and this workflow file.
+        uses: pypa/gh-action-pypi-publish@release/v1
+
+  npm:
+    name: Publish to npm
+    needs: [check, test]
+    if: needs.check.outputs.npm_missing == 'true'
+    runs-on: ubuntu-latest
+    environment: npm
+    permissions:
+      id-token: write   # mint the OIDC token npm trusted publishing verifies
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '24'
+          registry-url: 'https://registry.npmjs.org'
+
+      - name: The tarball carries the JavaScript half and nothing else
+        # `files` in package.json is an allowlist, and an allowlist that quietly stopped
+        # matching ships a package whose entry point is not in it. Cheap to check.
+        run: |
+          set -euo pipefail
+          npm pack --pack-destination /tmp
+          tar -tzf /tmp/didrun-*.tgz | sort
+          if tar -tzf /tmp/didrun-*.tgz | grep -q "package/python/"; then
+            echo "::error::the npm tarball carries the Python half"
+            exit 1
+          fi
+          for required in package/js/src/index.js package/js/src/evidence.js package/js/bin/didrun.js; do
+            if ! tar -tzf /tmp/didrun-*.tgz | grep -qx "$required"; then
+              echo "::error::the npm tarball is missing $required"
+              exit 1
+            fi
+          done
+
+      - name: Publish
+        # No token. npm verifies the OIDC token minted above against a trusted
+        # publisher registered for this repository and this workflow file.
+        run: npm publish --access public
+
+  tag:
+    name: Tag the release
+    needs: [check, test]
+    if: needs.check.outputs.tag_missing == 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - name: Create the tag and the GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ needs.check.outputs.version }}
+        run: |
+          set -euo pipefail
+          git tag "v$VERSION"
+          git push origin "v$VERSION"
+          gh release create "v$VERSION" --generate-notes --title "v$VERSION"
