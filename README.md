@@ -8,13 +8,18 @@ separate them. That is not a nuisance — it is how a check silently stops check
 nobody finds out for a year.
 
 ```sh
-pip install didrun          # the Python half
-npm install -g didrun       # the JavaScript half
+pip install didrun                    # the Python half
+npm install -g @megapixel99/didrun    # the JavaScript half
 
 didrun --expect-count "(\d+) passed" -- pytest tests/
 didrun --expect "^ok " -- go test ./...
 didrun --wrote coverage/lcov.info -- npm run coverage
 ```
+
+The npm package is scoped because npm refused the bare name — *"too similar to existing
+package `madrun`"* — so the two registries coordinate this under different names. The
+**command is `didrun` either way**; only the install line differs, and `release.yml`
+enforces that the npm name may add a scope and nothing else.
 
 Both halves ship the same command, the same flags and the same exit codes. A CI file
 should not have to ask which one is installed, and `python/tests/test_parity.py` asserts

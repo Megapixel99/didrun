@@ -105,10 +105,20 @@ jobs:
             echo "::error::pyproject.toml says $version and __version__ says $dunder"
             exit 1
           fi
-          if [ "$name" != "$js_name" ]; then
-            echo "::error::pyproject.toml names $name and package.json names $js_name"
-            exit 1
-          fi
+          # THE NPM NAME MAY CARRY A SCOPE, AND ONLY A SCOPE. npm refused the
+          # unscoped `didrun` -- "Package name too similar to existing package madrun"
+          # -- so the two registries coordinate this package under different names, on
+          # purpose. That is a decision, not drift, and the check still has to catch
+          # drift: the npm name must be exactly the PyPI name, or that name under a
+          # scope. `@megapixel99/didrn` fails here, which is the point.
+          case "$js_name" in
+            "$name"|@*/"$name") ;;
+            *)
+              echo "::error::pyproject.toml names $name and package.json names $js_name"
+              echo "::error::the npm name may add a scope and nothing else"
+              exit 1
+              ;;
+          esac
 
           echo "name=$name"       >> "$GITHUB_OUTPUT"
           echo "version=$version" >> "$GITHUB_OUTPUT"
@@ -128,7 +138,10 @@ jobs:
           fi
 
           # `npm view` exits non-zero when that exact version is not published.
-          if npm view "$name@$version" version > /dev/null 2>&1; then
+          # `$js_name`, not `$name`: the npm coordinate is the scoped one. Asking npm
+          # about the PyPI name would answer about a package this repository does not
+          # publish, and answer "missing" forever.
+          if npm view "$js_name@$version" version > /dev/null 2>&1; then
             npm_missing=false
           else
             npm_missing=true
@@ -211,13 +224,14 @@ jobs:
         run: |
           set -euo pipefail
           npm pack --pack-destination /tmp
-          tar -tzf /tmp/didrun-*.tgz | sort
-          if tar -tzf /tmp/didrun-*.tgz | grep -q "package/python/"; then
+          tarball=$(ls /tmp/*.tgz)
+          tar -tzf "$tarball" | sort
+          if tar -tzf "$tarball" | grep -q "package/python/"; then
             echo "::error::the npm tarball carries the Python half"
             exit 1
           fi
           for required in package/js/src/index.js package/js/src/evidence.js package/js/bin/didrun.js; do
-            if ! tar -tzf /tmp/didrun-*.tgz | grep -qx "$required"; then
+            if ! tar -tzf "$tarball" | grep -qx "$required"; then
               echo "::error::the npm tarball is missing $required"
               exit 1
             fi

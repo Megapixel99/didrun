@@ -1,6 +1,7 @@
 # A tool that reports checks which never ran has to answer for its own.
 #
-# It ships TWO HALVES from one tree -- `didrun` on PyPI and `didrun` on npm -- and the
+# It ships TWO HALVES from one tree -- `didrun` on PyPI and `@megapixel99/didrun` on
+# npm, because npm refused the unscoped name as too similar to `madrun` -- and the
 # gates below are this package's own properties pointed back at the package:
 #
 #   1. IT RUNS ITS OWN SUITES. `didrun` exists because a green run and a run of nothing
@@ -101,7 +102,7 @@ jobs:
                      console.error('::error::package.json declares dependencies');
                      process.exit(1);
                    }
-                   console.log('didrun', p.version)"
+                   console.log(p.name, p.version)"
 
       - name: the suites
         run: node --test js/test/*.test.js
@@ -253,7 +254,9 @@ jobs:
           # artifact instead.
           cd /tmp
           /tmp/venv/bin/didrun --help
-          mkdir -p /tmp/tarball && tar -xzf /tmp/dist/didrun-*.tgz -C /tmp/tarball
+          # A scoped package packs as `megapixel99-didrun-0.1.0.tgz`, so the tarball is
+          # found rather than named.
+          mkdir -p /tmp/tarball && tar -xzf /tmp/dist/*.tgz -C /tmp/tarball
           node /tmp/tarball/package/js/bin/didrun.js --help
 
       - name: both installed halves agree on the flagship case
