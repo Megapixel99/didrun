@@ -1,5 +1,10 @@
 # `didrun`
 
+[![PyPI](https://img.shields.io/pypi/v/didrun?label=PyPI&color=3775A9)](https://pypi.org/project/didrun/)
+[![npm](https://img.shields.io/npm/v/@megapixel99/didrun?label=npm&color=CB3837)](https://www.npmjs.com/package/@megapixel99/didrun)
+[![ci](https://github.com/Megapixel99/didrun/actions/workflows/ci.yml/badge.svg?branch=master)](https://github.com/Megapixel99/didrun/actions/workflows/ci.yml)
+[![license MIT](https://img.shields.io/badge/license-MIT-blue)](LICENSE)
+
 An exit code cannot tell you whether anything happened.
 
 `0` means **"I did not fail."** A suite of ten thousand assertions and a suite that
