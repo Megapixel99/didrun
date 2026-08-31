@@ -22,4 +22,4 @@ from .core import (
 __all__ = ["run", "report", "exit_code_for", "evidence", "Result",
            "DID_NOT_RUN", "RAN_AND_PASSED", "RAN_AND_FAILED", "RAN_AND_FAILED_WRONGLY",
            "EXIT_DID_NOT_RUN", "EXIT_WRONG_FAILURE"]
-__version__ = "0.1.0"
+__version__ = "0.1.1"
