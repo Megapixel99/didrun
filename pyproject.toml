@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "didrun"
-version = "0.1.1"
+version = "0.1.2"
 description = "An exit code cannot tell you whether anything happened. Did it RUN, did it FAIL, and was the failure the RIGHT one."
 readme = "README.md"
 requires-python = ">=3.9"

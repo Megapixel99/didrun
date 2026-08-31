@@ -1,0 +1,43 @@
+# What must NOT reach the npm tarball, and adding this file changes the default.
+#
+# WITHOUT a .npmignore, npm falls back to .gitignore. Creating one REPLACES that fallback
+# outright, so everything .gitignore was keeping out of the tarball has to be restated here
+# or it silently starts shipping. That is the trap this file is most likely to spring, so
+# the .gitignore entries are repeated below rather than assumed.
+#
+# `files` in package.json is the PRIMARY gate and an allowlist, which is the stronger of
+# the two: anything it does not name never ships, whatever this file says. This is the
+# second gate, and it earns its place twice: `files` names DIRECTORIES, so it cannot
+# exclude something added inside one, and this file is what still holds if `files` is ever
+# loosened or dropped.
+#
+# Checked rather than trusted: `npm pack --dry-run` prints the tarball's contents, and the
+# release workflow asserts the required entry points are in it before publishing.
+
+# --- the Python half. Same repository, different registry. ------------------- #
+python/
+pyproject.toml
+MANIFEST.in
+
+# --- tests. The suites are run from the repo, never from the tarball. -------- #
+js/test/
+
+# --- development and CI, none of which a consumer installs ------------------- #
+.github/
+.gitignore
+.npmignore
+
+# --- restated from .gitignore, because this file replaces that fallback ------ #
+__pycache__/
+*.py[cod]
+node_modules/
+dist/
+build/
+*.egg-info/
+
+# --- editor and OS droppings ------------------------------------------------- #
+.DS_Store
+*.swp
+*.tgz
+.vscode/
+.idea/
