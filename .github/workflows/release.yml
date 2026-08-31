@@ -29,6 +29,17 @@
 #     organization/user: Megapixel99   repository: didrun
 #     workflow: release.yml   environment: npm
 #
+#     THE FIRST NPM PUBLISH HAS TO BE MANUAL, and that is a chicken-and-egg rather
+#     than a mistake: a trusted publisher is configured ON a package, so the name has
+#     to exist before there is anything to configure. Once, from a clone:
+#
+#         npm publish --access public
+#
+#     `--access public` is not optional -- a SCOPED package defaults to private, and
+#     npm answers `402 Payment Required - You must sign up for private packages`,
+#     which reads like a billing problem and is a missing flag. This workflow passes
+#     it; the manual first publish has to as well.
+#
 # The version is read from `pyproject.toml` and is the single source of truth. It is
 # never typed into this file, because a version in two places is a version that
 # disagrees with itself at the next bump.
