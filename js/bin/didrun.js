@@ -46,7 +46,11 @@ Exit: 0 ran and passed · 3 did not run · 4 failed the wrong way ·
 
 function main(argv) {
   const sep = argv.indexOf("--");
-  if (argv.length === 0 || argv.includes("-h") || argv.includes("--help")) {
+  // Only the args before `--` are didrun's own. Scanning all of argv would let a
+  // `--help` belonging to the command under test print OUR usage and exit 0
+  // without ever spawning it, which is exactly the kind of check that cannot fail.
+  const ours = sep === -1 ? argv : argv.slice(0, sep);
+  if (argv.length === 0 || ours.includes("-h") || ours.includes("--help")) {
     usage();
     return argv.length === 0 ? 2 : 0;
   }

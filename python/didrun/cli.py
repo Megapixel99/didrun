@@ -49,7 +49,11 @@ Exit: 0 ran and passed · 3 did not run · 4 failed the wrong way ·
 
 def main(argv=None):
     argv = list(sys.argv[1:] if argv is None else argv)
-    if not argv or "-h" in argv or "--help" in argv:
+    # Only the args before `--` are didrun's own. Scanning all of argv would let a
+    # `--help` belonging to the command under test print OUR usage and exit 0
+    # without ever spawning it, which is exactly the kind of check that cannot fail.
+    ours = argv[: argv.index("--")] if "--" in argv else argv
+    if not argv or "-h" in ours or "--help" in ours:
         sys.stderr.write(USAGE)
         return 0 if argv else 2
     if "--" not in argv:
