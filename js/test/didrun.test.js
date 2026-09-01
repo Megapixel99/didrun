@@ -255,3 +255,40 @@ test("the command is required after --", async () => {
   const r = await cli(["--expect", "x", "--"]);
   assert.equal(r.code, 2);
 });
+
+test("a `--help` after `--` belongs to the command, not to didrun", async () => {
+  // The bug this replaces: the help scan read the whole of argv, so `-- CMD --help`
+  // printed didrun's OWN usage and exited 0 without ever spawning CMD. That makes the
+  // most natural check you could write about a CLI — that it ships and prints its usage
+  // — pass unconditionally, including against a binary that does not exist.
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "didrun-"));
+  const speaks = path.join(dir, "speaks.js");
+  const mute = path.join(dir, "mute.js");
+  fs.writeFileSync(speaks, "process.stdout.write('usage: tool [--json]');");
+  fs.writeFileSync(mute, "process.exit(0);");
+
+  const good = await cli(["--expect", "usage: tool", "--", NODE, speaks, "--help"]);
+  assert.equal(good.code, 0);
+  assert.doesNotMatch(good.stderr, /an exit code cannot tell you/,
+                      "didrun printed its own usage instead of running the command");
+
+  // And the half that was missing: it has to be able to fail.
+  const bad = await cli(["--expect", "usage: tool", "--", NODE, mute, "--help"]);
+  assert.equal(bad.code, EXIT_DID_NOT_RUN);
+
+  // `-h` is the same hazard.
+  const short = await cli(["--expect", "usage: tool", "--", NODE, mute, "-h"]);
+  assert.equal(short.code, EXIT_DID_NOT_RUN);
+});
+
+test("didrun's own -h and --help still print usage", async () => {
+  for (const flag of ["-h", "--help"]) {
+    const r = await cli([flag]);
+    assert.equal(r.code, 0);
+    assert.match(r.stderr, /an exit code cannot tell you/);
+  }
+  // Before the separator, among real flags, it is still didrun's.
+  const mixed = await cli(["--expect", "x", "-h", "--", NODE, "-e", "0"]);
+  assert.equal(mixed.code, 0);
+  assert.match(mixed.stderr, /an exit code cannot tell you/);
+});

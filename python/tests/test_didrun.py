@@ -156,5 +156,53 @@ class RefusalsAndEdges(unittest.TestCase):
         self.assertIn("[weak]", report(result))
 
 
+class TheCliArgumentBoundary(unittest.TestCase):
+    """Everything after `--` is the command's, including its own help flags."""
+
+    def cli(self, args):
+        proc = subprocess.run([sys.executable, "-m", "didrun.cli", *args],
+                              capture_output=True, text=True, cwd=ROOT, timeout=120)
+        return proc.returncode, proc.stderr
+
+    def setUp(self):
+        self.dir = tempfile.mkdtemp(prefix="didrun-")
+        self.speaks = os.path.join(self.dir, "speaks.py")
+        self.mute = os.path.join(self.dir, "mute.py")
+        with open(self.speaks, "w") as fh:
+            fh.write("import sys; sys.stdout.write('usage: tool [--json]')")
+        with open(self.mute, "w") as fh:
+            fh.write("")
+
+    def test_a_help_flag_after_the_separator_belongs_to_the_command(self):
+        # The bug this replaces: the help scan read the whole of argv, so
+        # `-- CMD --help` printed didrun's OWN usage and exited 0 without ever
+        # spawning CMD. That makes the most natural check you could write about a
+        # CLI -- that it ships and prints its usage -- pass unconditionally,
+        # including against a binary that does not exist.
+        code, err = self.cli(["--expect", "usage: tool", "--",
+                              sys.executable, self.speaks, "--help"])
+        self.assertEqual(code, 0)
+        self.assertNotIn("an exit code cannot tell you", err,
+                         "didrun printed its own usage instead of running the command")
+
+    def test_that_same_check_can_still_fail(self):
+        # The half that was missing.
+        for flag in ("--help", "-h"):
+            code, _ = self.cli(["--expect", "usage: tool", "--",
+                                sys.executable, self.mute, flag])
+            self.assertEqual(code, EXIT_DID_NOT_RUN, flag)
+
+    def test_didruns_own_help_flags_still_print_usage(self):
+        for flag in ("-h", "--help"):
+            code, err = self.cli([flag])
+            self.assertEqual(code, 0, flag)
+            self.assertIn("an exit code cannot tell you", err, flag)
+
+    def test_a_help_flag_among_the_flags_is_still_didruns(self):
+        code, err = self.cli(["--expect", "x", "-h", "--", sys.executable, self.mute])
+        self.assertEqual(code, 0)
+        self.assertIn("an exit code cannot tell you", err)
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)
