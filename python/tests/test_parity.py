@@ -16,6 +16,7 @@ import os
 import shutil
 import subprocess
 import sys
+import time
 import unittest
 
 HERE = os.path.dirname(os.path.abspath(__file__))
@@ -195,6 +196,45 @@ class TheCommandLineSaysTheSameThing(unittest.TestCase):
             with self.subTest(half=half, case="does not fire"):
                 out = run(["--expect", "done", "--timeout", "5", "--", *quick])
                 self.assertEqual(out.returncode, 0)
+
+    def test_a_deadline_BOUNDS_the_run_and_not_only_the_verdict(self):
+        """Asserting that a timeout fires is not asserting when, and only one is the promise.
+
+        THE TEST ABOVE PASSED WHILE THIS WAS BROKEN, which is the whole reason this one
+        exists. `--timeout 2` against a five-second command took FIVE SECONDS in the
+        JavaScript half and reported, accurately, that it had killed the child at two.
+        The verdict was right, the exit code was right, both halves agreed, and the
+        deadline had done nothing.
+
+        Two things hid it. The case above uses a DIRECT child, and killing a direct
+        child does close its pipes; the failure needs a grandchild, which is what
+        `-- pytest tests/` under a shell is and what this module documents. And the
+        assertion was a comparison — but a comparison cannot express a bound. Two halves
+        that both overrun agree perfectly, so if the Python half had shared the defect
+        this suite would have reported parity about two runs that both ignored the
+        deadline. That is this family's own zero-denominator failure aimed at its own
+        parity suite, so the assertion below is a flat number rather than a diff.
+
+        The ceiling is generous because it is a bound and not a stopwatch: a loaded
+        runner may take real time to start an interpreter. It still fails a deadline
+        that did not bound the command at all.
+        """
+        # `sh -c` puts the sleep BEHIND the process that gets signalled.
+        grandchild = ["sh", "-c", "sleep 20; echo done"]
+        ceiling = 10.0
+
+        for half, run in (("python", self._py), ("javascript", self._js)):
+            with self.subTest(half=half):
+                started = time.monotonic()
+                out = run(["--expect", "done", "--timeout", "2", "--", *grandchild])
+                elapsed = time.monotonic() - started
+                self.assertEqual(out.returncode, 3, out.stderr)
+                self.assertLess(
+                    elapsed, ceiling,
+                    f"{half} reported the deadline fired but took {elapsed:.1f}s to "
+                    f"bound a 20s command under --timeout 2 — the signal reached the "
+                    f"direct child and not the process group",
+                )
 
 
 if __name__ == "__main__":
