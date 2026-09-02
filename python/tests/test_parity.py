@@ -151,5 +151,51 @@ class TheValuedFlagTableIsComplete(unittest.TestCase):
                                         f"ours and usage should have printed")
 
 
+
+@unittest.skipUnless(NODE, "node is not on PATH")
+class TheCommandLineSaysTheSameThing(unittest.TestCase):
+    """The usage text and the flags it describes are one contract, not two."""
+
+    _js = TheValuedFlagTableIsComplete._js
+    _py = TheValuedFlagTableIsComplete._py
+
+    def test_the_usage_text_is_identical(self):
+        """Two copies of 40 lines of flags, and a CI file is written from whichever one
+        the author happened to read.
+
+        This caught `--timeout`, which each half documented correctly and differently:
+        `MS` here, `SECONDS` there, for the same flag on the same command line.
+        """
+        mine, theirs = self._py(["--help"]), self._js(["--help"])
+        self.assertEqual(mine.returncode, 0)
+        self.assertEqual(theirs.returncode, 0)
+        self.assertEqual(mine.stderr, theirs.stderr)
+        self.assertIn("--expect-count", mine.stderr,
+                      "the usage compared here is not the flag list")
+
+    def test_a_timeout_means_the_same_number_of_seconds_in_both_halves(self):
+        """The usage text agreeing is not the flag agreeing.
+
+        `run()` takes milliseconds in JavaScript and seconds in Python, so `--timeout 5`
+        killed at 5ms in one half and 5s in the other: one command line, opposite
+        verdicts, from the package whose entire subject is that a command that did not
+        run must not look like one that passed.
+        """
+        slow = [sys.executable, "-c", "import time; time.sleep(3); print('done')"]
+        quick = [sys.executable, "-c", "import time; time.sleep(0.2); print('done')"]
+
+        # A floor no half can meet: 1 second against a 3 second command.
+        for half, run in (("python", self._py), ("javascript", self._js)):
+            with self.subTest(half=half, case="fires"):
+                out = run(["--expect", "done", "--timeout", "1", "--", *slow])
+                self.assertEqual(out.returncode, 3)
+
+        # And a ceiling both clear: 5 seconds against a fifth of one.
+        for half, run in (("python", self._py), ("javascript", self._js)):
+            with self.subTest(half=half, case="does not fire"):
+                out = run(["--expect", "done", "--timeout", "5", "--", *quick])
+                self.assertEqual(out.returncode, 0)
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)
