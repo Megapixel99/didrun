@@ -158,7 +158,10 @@ Every predicate must hold: `every`, not `some`. The report prints what was looke
 is only a verdict is one nobody can audit.
 
 A timeout is classified rather than swallowed: a killed check is a check that did not
-finish, never one that passed.
+finish, never one that passed. It kills the command's **process group** — until 0.1.6
+it killed only the command, so `-- pytest tests/` under a shell left the runner itself
+alive, holding the pipe, and `--timeout 2` against a five-second command took five
+seconds while reporting it had been killed at two.
 
 ## Prior art
 
@@ -198,11 +201,11 @@ Nothing found wraps an arbitrary command and asks whether it did anything.
 ## Tests
 
 ```sh
-npm test                                        # 22
-python3 -m unittest discover -s python/tests    # 21, four of them the cross-half contract
+npm test                                        # 26
+python3 -m unittest discover -s python/tests    # 32, nine of them the cross-half contract
 ```
 
-22 JavaScript tests and 21 Python tests, no dependencies in either half. Six mutations to the source, never reporting `did-not-run`,
+26 JavaScript tests and 32 Python tests, no dependencies in either half. Six mutations to the source, never reporting `did-not-run`,
 treating it as success, accepting one predicate instead of all, allowing a run with no
 evidence, ignoring the count floor, and accepting a stale artefact: were each caught by
 the test that should catch them.
