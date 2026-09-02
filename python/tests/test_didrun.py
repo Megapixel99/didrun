@@ -203,6 +203,33 @@ class TheCliArgumentBoundary(unittest.TestCase):
         self.assertEqual(code, 0)
         self.assertIn("an exit code cannot tell you", err)
 
+    def test_a_dash_h_belonging_to_another_flag_is_that_flags_value(self):
+        """0.1.3 settled which arguments are the COMMAND's, not which of ours are flags.
+
+        `-h` is a regex to `--expect` and a path to `--wrote`, and reading either as a
+        request for help was the same usage-and-exit-0, one argument further in.
+        """
+        code, err = self.cli(["--expect", "-h", "--", sys.executable, "-c",
+                              "import sys; sys.stdout.write('-h')"])
+        self.assertEqual(code, 0)
+        self.assertNotIn("an exit code cannot tell you", err,
+                         "didrun printed its own usage instead of running the command")
+
+        # The discriminating half: with the bug, a command that produces nothing still
+        # exits 0, because nothing was ever spawned to produce it.
+        code, err = self.cli(["--expect", "-h", "--", sys.executable, self.mute])
+        self.assertEqual(code, EXIT_DID_NOT_RUN)
+        self.assertNotIn("an exit code cannot tell you", err)
+
+    def test_a_valued_flag_with_no_value_is_could_not_run(self):
+        """`value()` raised `SystemExit` and exited 1, the code that means THE WRAPPED
+        COMMAND failed normally, so anything branching on this table read a didrun usage
+        error as a test failure.
+        """
+        code, err = self.cli(["--expect", "--", sys.executable, self.mute])
+        self.assertEqual(code, 2)
+        self.assertEqual(err, "didrun: --expect needs a value\n")
+
 
 if __name__ == "__main__":
     unittest.main(verbosity=2)

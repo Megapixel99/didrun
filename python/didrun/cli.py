@@ -47,13 +47,36 @@ Exit: 0 ran and passed · 3 did not run · 4 failed the wrong way ·
 """
 
 
+# THE FLAGS THAT SWALLOW THE NEXT ARGUMENT. `--` says which arguments are the command's.
+# It does not say which of OURS are flags: `-h` is a regex to `--expect` and a path to
+# `--wrote`, and reading either as a request for help printed usage and exited 0 without
+# ever spawning the command, which is the same check-that-cannot-fail 0.1.3 closed one
+# argument further out.
+VALUED = {
+    "--expect", "--expect-stdout", "--expect-stderr", "--expect-count",
+    "--min", "--wrote", "--took-at-least", "--expect-failure", "--timeout",
+}
+
+
+def _wants_usage(ours):
+    """Is `-h`/`--help` here as OUR flag, rather than as some other flag's value?"""
+    i = 0
+    while i < len(ours):
+        if ours[i] in ("-h", "--help"):
+            return True
+        if ours[i] in VALUED:
+            i += 1          # the next argument is a value, not a flag
+        i += 1
+    return False
+
+
 def main(argv=None):
     argv = list(sys.argv[1:] if argv is None else argv)
     # Only the args before `--` are didrun's own. Scanning all of argv would let a
     # `--help` belonging to the command under test print OUR usage and exit 0
     # without ever spawning it, which is exactly the kind of check that cannot fail.
     ours = argv[: argv.index("--")] if "--" in argv else argv
-    if not argv or "-h" in ours or "--help" in ours:
+    if not argv or _wants_usage(ours):
         sys.stderr.write(USAGE)
         return 0 if argv else 2
     if "--" not in argv:
@@ -69,6 +92,20 @@ def main(argv=None):
     expect_failure = timeout = None
     minimum, quiet, as_json = 1, False, False
 
+    # A MISSING VALUE IS COULD-NOT-RUN (2), NOT THE COMMAND'S OWN STATUS, and it is
+    # settled HERE so no predicate is built from half an argument list. `value()` raised
+    # `SystemExit` and exited 1, the code that means THE WRAPPED COMMAND failed normally,
+    # so anything branching on this table read a didrun usage error as a test failure.
+    # Same walk as `_wants_usage`, same table.
+    i = 0
+    while i < len(flags):
+        if flags[i] in VALUED:
+            if i + 1 >= len(flags):
+                sys.stderr.write(f"didrun: {flags[i]} needs a value\n")
+                return 2
+            i += 1
+        i += 1
+
     i = 0
     while i < len(flags):
         flag = flags[i]
@@ -76,6 +113,7 @@ def main(argv=None):
         def value():
             nonlocal i
             i += 1
+            # Unreachable: the walk above proved every valued flag has one.
             if i >= len(flags):
                 raise SystemExit(f"didrun: {flag} needs a value")
             return flags[i]
