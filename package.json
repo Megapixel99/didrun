@@ -1,6 +1,6 @@
 {
   "name": "@megapixel99/didrun",
-  "version": "0.1.5",
+  "version": "0.1.6",
   "description": "Run a command and get a tri-state answer: did it RUN, did it FAIL, and was the failure the RIGHT one. An exit code cannot tell you the first.",
   "type": "module",
   "exports": {
