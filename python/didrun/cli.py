@@ -4,8 +4,10 @@
     didrun --expect "^ok " -- go test ./...
     didrun --wrote coverage.xml -- coverage run -m pytest
 
-Exit codes: 0 ran and passed · 3 DID NOT RUN · 4 failed the wrong way · otherwise the
-command's own status.
+Exit codes: 0 ran and passed · 3 DID NOT RUN · 4 failed the wrong way · 2 didrun could
+not run at all · otherwise the command's own status. 2 is DIDRUN's, never the command's:
+it means no verdict was reached, which is a different thing from a verdict of failure and
+belongs in a different branch of your CI file.
 
 THE FLAGS AND THE EXIT CODES ARE THE JAVASCRIPT HALF'S, deliberately. A CI file should
 not have to ask which half is installed, and `python/tests/test_parity.py` asserts the
@@ -42,8 +44,8 @@ Options:
   --json                  print the result as JSON
   -h, --help
 
-Exit: 0 ran and passed · 3 did not run · 4 failed the wrong way ·
-      otherwise the command's own status.
+Exit: 0 ran and passed · 3 did not run · 4 failed the wrong way · 2 didrun
+      could not run at all · otherwise the command's own status.
 """
 
 
