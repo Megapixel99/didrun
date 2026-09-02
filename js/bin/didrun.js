@@ -35,7 +35,7 @@ exit code, and this refuses rather than pretending):
 Options:
   --expect-failure REGEX  when it fails, the output must match this or the
                           failure is scored as the WRONG one (exit 4)
-  --timeout MS            kill the command after MS and classify anyway
+  --timeout SECONDS       kill the command and classify anyway
   --quiet                 only print on a bad verdict
   --json                  print the result as JSON
   -h, --help
@@ -124,7 +124,11 @@ function main(argv) {
       case "--wrote": predicates.push(evidence.wrote(value())); break;
       case "--took-at-least": predicates.push(evidence.tookAtLeast(Number(value()))); break;
       case "--expect-failure": expectFailure = value(); break;
-      case "--timeout": timeout = Number(value()); break;
+      // SECONDS, CONVERTED HERE. `run()` takes milliseconds and the Python half
+      // takes seconds, so this flag meant two things a thousand apart: the same
+      // `--timeout 5` killed at 5ms here and at 5s there, and the two halves
+      // returned opposite verdicts for one command line.
+      case "--timeout": timeout = Number(value()) * 1000; break;
       case "--quiet": quiet = true; break;
       case "--json": asJson = true; break;
       default:
