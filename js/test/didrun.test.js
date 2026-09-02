@@ -292,3 +292,30 @@ test("didrun's own -h and --help still print usage", async () => {
   assert.equal(mixed.code, 0);
   assert.match(mixed.stderr, /an exit code cannot tell you/);
 });
+
+test("a `-h` that belongs to another flag is that flag's value, not ours", async () => {
+  // 0.1.3 settled which arguments are the COMMAND's. It did not settle which of ours are
+  // flags: `-h` is a regex to `--expect` and a path to `--wrote`, and reading either as a
+  // request for help was the same usage-and-exit-0, one argument further in.
+  const ran = await cli(["--expect", "-h", "--", NODE, "-e",
+                         "process.stdout.write('-h')"]);
+  assert.equal(ran.code, 0);
+  assert.doesNotMatch(ran.stderr, /an exit code cannot tell you/,
+                      "didrun printed its own usage instead of running the command");
+
+  // The discriminating half: with the bug, a command that produces nothing still exits 0
+  // because nothing was ever spawned to produce it.
+  const silent = await cli(["--expect", "-h", "--", NODE, "-e", "0"]);
+  assert.equal(silent.code, EXIT_DID_NOT_RUN);
+  assert.doesNotMatch(silent.stderr, /an exit code cannot tell you/);
+});
+
+test("a valued flag with no value is could-not-run, not a stack trace", async () => {
+  // `value()` threw out of `main`; node printed an unhandled rejection and exited 1, the
+  // code that means THE WRAPPED COMMAND failed normally. Anything branching on this
+  // table read a didrun usage error as a test failure.
+  const out = await cli(["--expect", "--", NODE, "-e", "0"]);
+  assert.equal(out.code, 2);
+  assert.equal(out.stderr, "didrun: --expect needs a value\n");
+  assert.doesNotMatch(out.stderr, /at async|ERR_UNHANDLED/);
+});

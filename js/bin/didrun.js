@@ -44,13 +44,32 @@ Exit: 0 ran and passed · 3 did not run · 4 failed the wrong way ·
   );
 }
 
+// THE FLAGS THAT SWALLOW THE NEXT ARGUMENT. `--` says which arguments are the command's.
+// It does not say which of OURS are flags: `-h` is a regex to `--expect` and a path to
+// `--wrote`, and reading either as a request for help printed usage and exited 0 without
+// ever spawning the command, which is the same check-that-cannot-fail 0.1.3 closed one
+// argument further out.
+const VALUED = new Set([
+  "--expect", "--expect-stdout", "--expect-stderr", "--expect-count",
+  "--min", "--wrote", "--took-at-least", "--expect-failure", "--timeout",
+]);
+
+/** Is `-h`/`--help` here as OUR flag, rather than as some other flag's value? */
+function wantsUsage(ours) {
+  for (let i = 0; i < ours.length; i++) {
+    if (ours[i] === "-h" || ours[i] === "--help") return true;
+    if (VALUED.has(ours[i])) i++;   // the next argument is a value, not a flag
+  }
+  return false;
+}
+
 function main(argv) {
   const sep = argv.indexOf("--");
   // Only the args before `--` are didrun's own. Scanning all of argv would let a
   // `--help` belonging to the command under test print OUR usage and exit 0
   // without ever spawning it, which is exactly the kind of check that cannot fail.
   const ours = sep === -1 ? argv : argv.slice(0, sep);
-  if (argv.length === 0 || ours.includes("-h") || ours.includes("--help")) {
+  if (argv.length === 0 || wantsUsage(ours)) {
     usage();
     return argv.length === 0 ? 2 : 0;
   }
@@ -73,10 +92,24 @@ function main(argv) {
   let min = 1;
   const counts = [];
 
+  // A MISSING VALUE IS COULD-NOT-RUN (2), NOT THE COMMAND'S OWN STATUS, and it is settled
+  // HERE so no predicate is built from half an argument list. `value()` threw out of
+  // `main`: node printed an unhandled rejection and exited 1, the code that means THE
+  // WRAPPED COMMAND failed normally, so anything branching on this table read a didrun
+  // usage error as a test failure. Same walk as `wantsUsage`, same table.
+  for (let i = 0; i < flags.length; i++) {
+    if (!VALUED.has(flags[i])) continue;
+    if (i + 1 >= flags.length) {
+      process.stderr.write(`didrun: ${flags[i]} needs a value\n`);
+      return 2;
+    }
+    i++;
+  }
   for (let i = 0; i < flags.length; i++) {
     const flag = flags[i];
     const value = () => {
       const v = flags[++i];
+      // Unreachable: the walk above proved every valued flag has one.
       if (v === undefined) throw new Error(`${flag} needs a value`);
       return v;
     };
