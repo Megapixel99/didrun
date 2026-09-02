@@ -7,8 +7,10 @@
  *   didrun --wrote coverage/lcov.info -- npm run coverage
  *   didrun --expect-count "(\\d+) problems?" --min 0 --expect-failure "no-unused" -- eslint src
  *
- * Exit codes: 0 ran and passed · 3 DID NOT RUN · 4 failed the wrong way ·
- * otherwise the command's own status.
+ * Exit codes: 0 ran and passed · 3 DID NOT RUN · 4 failed the wrong way · 2 didrun
+ * could not run at all · otherwise the command's own status. 2 is DIDRUN's, never the
+ * command's: it means no verdict was reached, which is a different thing from a verdict
+ * of failure and belongs in a different branch of your CI file.
  */
 
 import process from "node:process";
@@ -38,8 +40,8 @@ Options:
   --json                  print the result as JSON
   -h, --help
 
-Exit: 0 ran and passed · 3 did not run · 4 failed the wrong way ·
-      otherwise the command's own status.
+Exit: 0 ran and passed · 3 did not run · 4 failed the wrong way · 2 didrun
+      could not run at all · otherwise the command's own status.
 `
   );
 }

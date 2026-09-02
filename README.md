@@ -72,6 +72,12 @@ file it never parsed.
 the command itself failed. *"Your tests failed"* and *"you have no tests"* send you to
 different places.
 
+There is a fifth code, and it is not a state. **`2` means didrun could not run at all**:
+a bad argument shape, an unknown option, a flag with no value, no evidence to check, or a
+command that could not be spawned. Nothing was measured, so there is no verdict to
+report, which is a different thing from a verdict of failure and belongs in a different
+branch of your CI file. Like `3`, it is never the command's own code.
+
 ## Read this first: some runners already answer question one
 
 Let them. Checked, not assumed:
@@ -88,8 +94,9 @@ If your runner is in the first two rows, you may not need this. It is for the re
 
 ## Evidence
 
-At least one predicate is required. **With none, `run()` throws and the CLI exits 2**:
-a tool that silently degrades into forwarding the exit code is the thing it is replacing.
+At least one predicate is required. **With none, `run()` throws and the CLI exits 2**
+(see the exit codes above): a tool that silently degrades into forwarding the exit code
+is the thing it is replacing.
 
 | flag | evidence |
 |---|---|
