@@ -159,12 +159,48 @@ export function report(result) {
   return lines.join("\n");
 }
 
+/**
+ * SIGKILL the child's whole process group, falling back to the child alone.
+ *
+ * The negative pid is the group. `process.kill` throws ESRCH if the group is already
+ * gone — a race this cannot avoid, because the child may exit between the deadline
+ * firing and the signal landing — so the failure is swallowed and the direct child is
+ * signalled as a fallback, which is what this did before and is never worse.
+ */
+function killTree(child) {
+  if (process.platform !== "win32" && child.pid) {
+    try {
+      process.kill(-child.pid, "SIGKILL");
+      return;
+    } catch {
+      // ESRCH, or a platform that would not give us the group. Fall through.
+    }
+  }
+  try {
+    child.kill("SIGKILL");
+  } catch {
+    // Already gone, which is the outcome we wanted.
+  }
+}
+
 function spawnCollect(command, { timeout, cwd, env, inherit }) {
   return new Promise((resolve, reject) => {
     const child = spawn(command[0], command.slice(1), {
       cwd,
       env: env ? { ...process.env, ...env } : process.env,
       stdio: ["ignore", "pipe", "pipe"],
+      // A NEW PROCESS GROUP, SO THE DEADLINE CAN REACH THE WHOLE TREE. `child.kill()`
+      // signals the direct child and nothing else, and the documented usage of this
+      // module is `-- pytest tests/` under a shell — so the process that gets the
+      // signal is `sh`, and the runner that is actually doing the work is its child.
+      // The grandchild survives, keeps the inherited stdout, and `close` therefore does
+      // not fire until it finishes on its own: `--timeout 2` against a five-second
+      // command took five seconds and reported that it had been killed at two.
+      //
+      // Not on Windows, where `detached` means a new console rather than a new process
+      // group and negative pids are not a thing. There the direct-child kill below is
+      // all there is.
+      detached: process.platform !== "win32",
     });
     let stdout = "";
     let stderr = "";
@@ -182,7 +218,7 @@ function spawnCollect(command, { timeout, cwd, env, inherit }) {
     if (timeout) {
       timer = setTimeout(() => {
         killed = true;
-        child.kill("SIGKILL");
+        killTree(child);
       }, timeout);
     }
     child.on("error", (err) => {
